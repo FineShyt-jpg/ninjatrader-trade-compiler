@@ -10,6 +10,7 @@ COPY . .
 # Create upload/output dirs at runtime
 RUN mkdir -p uploads output
 
-EXPOSE 5000
+EXPOSE ${PORT:-5000}
 
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120"]
+# Shell form so $PORT env var (set by Railway) expands at runtime
+CMD gunicorn app:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120
