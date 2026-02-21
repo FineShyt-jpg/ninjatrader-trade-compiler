@@ -1,0 +1,43 @@
+# NinjaTrader Trade History Compiler — Cursor AI Rules
+
+## Project Overview
+A Flask web app that merges multiple NinjaTrader daily export files (CSV/XLSX)
+into one consolidated CSV per account. Runs in Docker, deploys via Railway, CI via GitHub Actions.
+
+## Stack
+- **Backend**: Python 3.11, Flask
+- **Frontend**: Vanilla HTML/CSS/JS (no framework — keep it that way unless explicitly changed)
+- **Container**: Docker (python:3.11-slim base)
+- **Deploy**: Railway (auto-deploy on push to main)
+- **CI**: GitHub Actions (.github/workflows/ci.yml)
+
+## File Structure
+```
+app.py                  ← Flask app — all routes and processing logic
+templates/index.html    ← Single-page UI with drag-and-drop upload
+requirements.txt        ← Python deps (Flask, pandas, openpyxl, gunicorn)
+Dockerfile              ← Container build
+railway.toml            ← Railway deploy config
+.github/workflows/ci.yml ← CI: syntax check + Docker build + smoke test
+```
+
+## Key Rules
+1. NinjaTrader CSV/XLSX files have metadata rows at the top — always skip to the real header row.
+2. The real header row contains columns like: "Entry time", "Exit time", "Instrument", "Market pos.", "Quantity", "Entry price", "Exit price", "Profit".
+3. Deduplicate rows by exact match before writing output.
+4. Sort output by "Entry time" ascending.
+5. Output filename format: `{account_name}_compiled_{YYYY-MM-DD}.csv`
+6. Uploaded files go in `uploads/` dir; output CSVs go in `output/` dir. Neither is committed to git.
+7. Keep the frontend vanilla — no React, no Node, no bundler unless the user explicitly asks.
+8. Production server is gunicorn — never use Flask dev server (`app.run()`) in Docker.
+
+## Coding Style
+- Prefer clear, readable code over clever one-liners.
+- Add comments only where logic is non-obvious.
+- Keep routes thin — move processing logic into helper functions.
+- Never hardcode file paths; use `os.path.join` and the app's configured folders.
+
+## When Adding New Languages / Services
+- Any new service (Node, Redis, etc.) must have its own Dockerfile or be added to a docker-compose.yml.
+- New GitHub Actions jobs go in `.github/workflows/ci.yml` under a new `job` block.
+- Railway supports multi-service deploys — add new services in the Railway dashboard and link to the same repo.
