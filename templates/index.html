@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NinjaTrader Trade Compiler</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0f0f1a;
+      --surface: #1a1a2e;
+      --card:    #1e1e35;
+      --border:  #2e2e50;
+      --accent:  #7c6af7;
+      --accent2: #a78bfa;
+      --green:   #4ade80;
+      --red:     #f87171;
+      --yellow:  #facc15;
+      --fg:      #e2e2f0;
+      --muted:   #6b6b8a;
+      --font:    'Segoe UI', system-ui, sans-serif;
+      --mono:    'Cascadia Code', 'Consolas', monospace;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 64px;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    header p {
+      color: var(--muted);
+      margin-top: 6px;
+      font-size: 0.9rem;
+    }
+
+    /* ── Layout ── */
+    .container {
+      width: 100%;
+      max-width: 820px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    /* ── Account row ── */
+    .account-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .account-row label {
+      font-size: 0.875rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .account-row input {
+      flex: 1;
+      min-width: 180px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--fg);
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .account-row input:focus { border-color: var(--accent); }
+
+    /* ── Drop zone ── */
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    #drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(124,106,247,.07);
+    }
+    #drop-zone svg { opacity: .4; margin-bottom: 12px; }
+    #drop-zone p   { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+    #drop-zone span { color: var(--accent2); font-weight: 600; cursor: pointer; }
+    #file-input { display: none; }
+
+    /* ── File list ── */
+    .file-list-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .badge {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 0.75rem;
+      color: var(--accent2);
+    }
+    #file-list {
+      list-style: none;
+      max-height: 280px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    #file-list::-webkit-scrollbar { width: 6px; }
+    #file-list::-webkit-scrollbar-track { background: transparent; }
+    #file-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.825rem;
+      animation: slideIn .15s ease;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .file-name {
+      font-family: var(--mono);
+      color: var(--fg);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 560px;
+    }
+    .file-size { color: var(--muted); font-size: 0.75rem; margin-left: 8px; white-space: nowrap; }
+    .remove-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 1rem;
+      line-height: 1;
+      transition: color .15s, background .15s;
+    }
+    .remove-btn:hover { color: var(--red); background: rgba(248,113,113,.1); }
+
+    .empty-state {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.875rem;
+      padding: 24px 0;
+    }
+
+    /* ── Buttons ── */
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 18px;
+      border-radius: 8px;
+      border: none;
+      font-family: var(--font);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary  { background: var(--accent);  color: #fff; }
+    .btn-ghost    { background: var(--surface);  color: var(--fg);  border: 1px solid var(--border); }
+    .btn-danger   { background: rgba(248,113,113,.15); color: var(--red); border: 1px solid rgba(248,113,113,.3); }
+    .btn-ml-auto  { margin-left: auto; }
+
+    /* ── Progress ── */
+    #progress-card { display: none; }
+    .progress-bar-bg {
+      background: var(--bg);
+      border-radius: 999px;
+      height: 10px;
+      overflow: hidden;
+      margin: 10px 0;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 999px;
+      width: 0%;
+      transition: width .3s ease;
+    }
+    #progress-text { color: var(--muted); font-size: 0.825rem; }
+
+    /* ── Result ── */
+    #result-card { display: none; }
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .stat-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+    .stat-value { font-size: 1.6rem; font-weight: 700; color: var(--accent2); }
+    .stat-label { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── Compile button ── */
+    #compile-btn {
+      width: 100%;
+      justify-content: center;
+      padding: 14px;
+      font-size: 1rem;
+      border-radius: 10px;
+    }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 20px;
+      font-size: 0.875rem;
+      max-width: 360px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity .25s, transform .25s;
+      pointer-events: none;
+      z-index: 999;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    #toast.error { border-color: var(--red);   color: var(--red); }
+    #toast.success { border-color: var(--green); color: var(--green); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>NinjaTrader Trade Compiler</h1>
+  <p>Upload daily export files &mdash; compile into one clean CSV per account</p>
+</header>
+
+<div class="container">
+
+  <!-- Account -->
+  <div class="card">
+    <div class="card-title">Account Settings</div>
+    <div class="account-row">
+      <label for="account-input">Account Name</label>
+      <input id="account-input" type="text" value="Account_1"
+             placeholder="e.g. Sim101, Live_Account_1" />
+    </div>
+  </div>
+
+  <!-- Drop zone -->
+  <div class="card">
+    <div class="card-title">Add Files</div>
+    <div id="drop-zone">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="1.5">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <p>Drag &amp; drop CSV / XLSX files here<br/>
+         or <span id="browse-link">browse to select files</span></p>
+    </div>
+    <input id="file-input" type="file" multiple accept=".csv,.xlsx,.xls" />
+  </div>
+
+  <!-- File list -->
+  <div class="card">
+    <div class="file-list-header">
+      <div class="card-title" style="margin-bottom:0">Staged Files</div>
+      <span class="badge" id="file-count">0 files</span>
+    </div>
+    <ul id="file-list">
+      <li class="empty-state" id="empty-state">No files added yet.</li>
+    </ul>
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="add-more-btn">+ Add More</button>
+      <button class="btn btn-danger btn-ml-auto" id="clear-btn">Clear All</button>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="card" id="progress-card">
+    <div class="card-title">Compiling</div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+    <div id="progress-text">Starting…</div>
+  </div>
+
+  <!-- Result -->
+  <div class="card" id="result-card">
+    <div class="card-title">Result</div>
+    <div class="result-grid">
+      <div class="stat-box">
+        <div class="stat-value" id="stat-files">—</div>
+        <div class="stat-label">Files Merged</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="stat-rows">—</div>
+        <div class="stat-label">Total Rows</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="stat-dupes">—</div>
+        <div class="stat-label">Duplicates Removed</div>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="download-btn" style="width:100%;justify-content:center;">
+      ⬇ Download Compiled CSV
+    </button>
+  </div>
+
+  <!-- Compile -->
+  <button class="btn btn-primary" id="compile-btn" disabled>
+    Compile All Files
+  </button>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let sessionId   = null;
+  let stagedFiles = [];   // { id, name, size }
+  let lastFilename = null;
+  let fileCount   = 0;
+
+  // ── Session init ───────────────────────────────────────────────────────────
+  async function initSession() {
+    const r = await fetch("/session/new", { method: "POST" });
+    const d = await r.json();
+    sessionId = d.session_id;
+  }
+
+  // ── Upload files ───────────────────────────────────────────────────────────
+  async function uploadFiles(files) {
+    if (!files.length) return;
+    const form = new FormData();
+    for (const f of files) form.append("files", f);
+
+    const r = await fetch(`/session/${sessionId}/upload`, { method: "POST", body: form });
+    const d = await r.json();
+    if (d.error) { toast(d.error, "error"); return; }
+
+    for (const f of d.added) {
+      stagedFiles.push(f);
+      addFileRow(f);
+    }
+    updateCount();
+    syncAccount();
+    toast(`Added ${d.added.length} file(s). Total: ${d.total}`, "success");
+  }
+
+  // ── Remove a file ──────────────────────────────────────────────────────────
+  async function removeFile(id) {
+    await fetch(`/session/${sessionId}/remove`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id })
+    });
+    stagedFiles = stagedFiles.filter(f => f.id !== id);
+    document.getElementById(`row-${id}`)?.remove();
+    updateCount();
+  }
+
+  // ── Clear all ──────────────────────────────────────────────────────────────
+  async function clearAll() {
+    await fetch(`/session/${sessionId}/clear`, { method: "POST" });
+    stagedFiles = [];
+    document.getElementById("file-list").innerHTML =
+      '<li class="empty-state" id="empty-state">No files added yet.</li>';
+    updateCount();
+  }
+
+  // ── Sync account name ──────────────────────────────────────────────────────
+  async function syncAccount() {
+    const account = document.getElementById("account-input").value.trim() || "Account_1";
+    await fetch(`/session/${sessionId}/account`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ account })
+    });
+  }
+
+  // ── Compile ────────────────────────────────────────────────────────────────
+  async function compile() {
+    await syncAccount();
+    fileCount = stagedFiles.length;
+
+    // Show progress card, hide result
+    const progCard   = document.getElementById("progress-card");
+    const resultCard = document.getElementById("result-card");
+    progCard.style.display   = "block";
+    resultCard.style.display = "none";
+    setProgressFill(0);
+    document.getElementById("progress-text").textContent = "Starting…";
+    document.getElementById("compile-btn").disabled = true;
+
+    const r = await fetch(`/session/${sessionId}/compile`, { method: "POST" });
+    const d = await r.json();
+    if (d.error) { toast(d.error, "error"); document.getElementById("compile-btn").disabled = false; return; }
+
+    // Stream progress via SSE
+    const es = new EventSource(`/job/${d.job_id}/progress`);
+    es.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === "progress") {
+        const pct = Math.round((msg.current / msg.total) * 100);
+        setProgressFill(pct);
+        document.getElementById("progress-text").textContent =
+          `Processing ${msg.current} / ${msg.total}: ${msg.file}`;
+      } else if (msg.type === "done") {
+        es.close();
+        setProgressFill(100);
+        document.getElementById("progress-text").textContent = "Complete!";
+        lastFilename = msg.filename;
+        showResult(fileCount, msg.rows, msg.dupes);
+        document.getElementById("compile-btn").disabled = false;
+      } else if (msg.type === "error") {
+        es.close();
+        toast(msg.message, "error");
+        document.getElementById("compile-btn").disabled = false;
+      }
+    };
+  }
+
+  // ── UI helpers ─────────────────────────────────────────────────────────────
+  function setProgressFill(pct) {
+    document.getElementById("progress-fill").style.width = pct + "%";
+  }
+
+  function showResult(files, rows, dupes) {
+    document.getElementById("result-card").style.display = "block";
+    document.getElementById("stat-files").textContent = files.toLocaleString();
+    document.getElementById("stat-rows").textContent  = rows.toLocaleString();
+    document.getElementById("stat-dupes").textContent = dupes.toLocaleString();
+    document.getElementById("result-card").scrollIntoView({ behavior: "smooth" });
+    toast("Compilation complete!", "success");
+  }
+
+  function addFileRow(f) {
+    const empty = document.getElementById("empty-state");
+    if (empty) empty.remove();
+
+    const li = document.createElement("li");
+    li.className = "file-item";
+    li.id = `row-${f.id}`;
+    li.innerHTML = `
+      <span class="file-name">${escHtml(f.name)}</span>
+      <span class="file-size">${fmtSize(f.size)}</span>
+      <button class="remove-btn" title="Remove" data-id="${f.id}">✕</button>`;
+    li.querySelector(".remove-btn").addEventListener("click", () => removeFile(f.id));
+    document.getElementById("file-list").appendChild(li);
+  }
+
+  function updateCount() {
+    const n = stagedFiles.length;
+    document.getElementById("file-count").textContent = `${n} file${n !== 1 ? "s" : ""}`;
+    document.getElementById("compile-btn").disabled = n === 0;
+    if (n === 0 && !document.getElementById("empty-state")) {
+      const li = document.createElement("li");
+      li.className = "empty-state";
+      li.id = "empty-state";
+      li.textContent = "No files added yet.";
+      document.getElementById("file-list").appendChild(li);
+    }
+  }
+
+  function fmtSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  let toastTimer;
+  function toast(msg, type = "") {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.className = "show" + (type ? " " + type : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = ""; }, 4000);
+  }
+
+  // ── Event wiring ───────────────────────────────────────────────────────────
+  document.getElementById("browse-link").addEventListener("click", () =>
+    document.getElementById("file-input").click());
+
+  document.getElementById("add-more-btn").addEventListener("click", () =>
+    document.getElementById("file-input").click());
+
+  document.getElementById("file-input").addEventListener("change", (e) => {
+    uploadFiles([...e.target.files]);
+    e.target.value = "";
+  });
+
+  const dz = document.getElementById("drop-zone");
+  dz.addEventListener("dragover",  (e) => { e.preventDefault(); dz.classList.add("drag-over"); });
+  dz.addEventListener("dragleave", ()  => dz.classList.remove("drag-over"));
+  dz.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dz.classList.remove("drag-over");
+    uploadFiles([...e.dataTransfer.files]);
+  });
+
+  document.getElementById("clear-btn").addEventListener("click", clearAll);
+  document.getElementById("compile-btn").addEventListener("click", compile);
+
+  document.getElementById("account-input").addEventListener("blur", syncAccount);
+
+  document.getElementById("download-btn").addEventListener("click", () => {
+    if (lastFilename) window.location.href = `/download/${encodeURIComponent(lastFilename)}`;
+  });
+
+  // ── Boot ───────────────────────────────────────────────────────────────────
+  initSession();
+</script>
+</body>
+</html>
